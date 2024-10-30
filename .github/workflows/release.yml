@@ -1,0 +1,84 @@
+name: release
+
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+
+    # nodejsのセットアップ
+    - name: setup node
+      uses: actions/setup-node@v1
+      with:
+        node-version: '23'
+
+    # node modulesのインストール
+    - name: install
+      run: cd ./app && npm install
+
+    # ビルド
+    - name: build
+      run: cd ./app && npm run build
+
+    # github pagesへアップロード
+    - name: upload github pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./app/dist
+
+    # ビルド生成物の中にsettingフォルダを作る
+    - name: make setting directory
+      run: cd ./app/dist && mkdir setting
+
+    # distをnginxに入れる
+    - name: move dist
+      run: mv ./app/dist ./nginx/html
+
+    # リリース物の名前を変える
+    # (release.zipを展開した後の名前)
+    - name: change directory name
+      run: mv nginx osakana_derby
+
+    # nginxをリリース物としてzipにまとめる
+    - name: zip
+      run: zip -r release ./osakana_derby
+      
+    # npmのバージョン情報を取得
+    #
+    # これで使えるようになる
+    # ${{ steps.package-version.outputs.current-version}}
+    - name: get-npm-version
+      id: package-version
+      uses: martinbeentjes/npm-get-version-action@master
+      with:
+        path: web
+
+    # リリース
+    - name: create release
+      id: create_release
+      uses: actions/create-release@v1.0.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: version_${{ steps.package-version.outputs.current-version}}
+        release_name: Release ${{ steps.package-version.outputs.current-version}}
+        draft: false
+        prerelease: false
+
+    # zipに固めたソースをreleaseのassetにアップロードする
+    - name: upload release asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release.zip
+        asset_name: release.zip
+        asset_content_type: application/zip

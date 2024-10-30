@@ -1,0 +1,16 @@
+version: '3'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: thumbnail-checker
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./app:/usr/src/app
+    environment:
+      # ホットリロードの有効化（未検証）
+      - CHOKIDAR_USEPOLLING=true
+    # これなんだっけ？
+    tty: true
